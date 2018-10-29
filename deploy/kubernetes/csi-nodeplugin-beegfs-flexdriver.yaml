@@ -1,0 +1,88 @@
+kind: DaemonSet
+apiVersion: apps/v1beta2
+metadata:
+  name: csi-nodeplugin-beegfs
+spec:
+  selector:
+    matchLabels:
+      app: csi-nodeplugin-beegfs
+  template:
+    metadata:
+      labels:
+        app: csi-nodeplugin-beegfs
+    spec:
+      serviceAccount: csi-nodeplugin
+      hostNetwork: true
+      imagePullSecrets:
+        - name: gitlab-registry
+      containers:
+        - name: driver-registrar
+          image: quay.io/k8scsi/driver-registrar:v0.3.0
+          args:
+            - "--v=5"
+            - "--csi-address=$(ADDRESS)"
+          env:
+            - name: ADDRESS
+              value: /plugin/csi.sock
+            - name: KUBE_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /plugin
+        - name: beegfs
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_ADMIN"]
+            allowPrivilegeEscalation: true
+          image: ${DOCKER_IMAGE}
+          args :
+            - "--nodeid=$(NODE_ID)"
+            - "--drivername=csi-beegfs-flexdriver"
+            - "--endpoint=$(CSI_ENDPOINT)"
+          env:
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: CSI_ENDPOINT
+              value: unix://plugin/csi.sock
+            - name: BEEGFS_ROOT
+              value: /mnt/beegfs
+          imagePullPolicy: "Always"
+          volumeMounts:
+            - name: plugin-dir
+              mountPath: /plugin
+            - name: pods-mount-dir
+              mountPath: /var/lib/kubelet/pods
+              mountPropagation: "Bidirectional"
+            - name: beegfs-mount-dir
+              mountPath: /mnt/beegfs
+              mountPropagation: "Bidirectional"
+            # - name: nvmenode-mount-dir
+            #   mountPath: /mnt/nvmenode
+            #   mountPropagation: "Bidirectional"
+            - name: syslog
+              mountPath: /dev/log
+      volumes:
+        - name: plugin-dir
+          hostPath:
+            path: /var/lib/kubelet/plugins/csi-beegfs-flexdriver
+            type: DirectoryOrCreate
+        - name: pods-mount-dir
+          hostPath:
+            path: /var/lib/kubelet/pods
+            type: Directory
+        - name: beegfs-mount-dir
+          hostPath:
+            path: /mnt/beegfs
+            type: Directory
+        # - name: nvmenode-mount-dir
+        #   hostPath:
+        #     path: /mnt/nvmenode
+        #     type: Directory
+        - name: syslog
+          hostPath:
+            path: /dev/log

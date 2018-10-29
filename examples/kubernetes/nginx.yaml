@@ -1,0 +1,94 @@
+
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: beegfs
+provisioner: csi-beegfs-flexdriver
+parameters:
+  type: the-special-type
+
+---
+
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: data
+  labels:
+    name: data
+spec:
+  accessModes:
+  - ReadWriteMany
+  capacity:
+    storage: 10Gi
+  csi:
+    driver: csi-beegfs-flexdriver
+    volumeHandle: data-01
+    volumeAttributes:
+      share: data
+      # root: /mnt/nvmenode
+  storageClassName: beegfs
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+  selector:
+    matchExpressions:
+    - key: name
+      operator: In
+      values: ["data"]
+  storageClassName: beegfs
+
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx
+spec:
+  containers:
+  - image: nginx
+    imagePullPolicy: IfNotPresent
+    name: nginx
+    ports:
+    - containerPort: 80
+      protocol: TCP
+    volumeMounts:
+      - mountPath: /usr/share/nginx/html
+        name: www-data
+        readOnly: true
+  volumes:
+  - name: www-data
+    persistentVolumeClaim:
+      claimName: data
+
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx2
+spec:
+  containers:
+  - image: nginx
+    imagePullPolicy: IfNotPresent
+    name: nginx2
+    ports:
+    - containerPort: 80
+      protocol: TCP
+    volumeMounts:
+      - mountPath: /usr/share/nginx/html
+        name: www-data
+        readOnly: true
+  volumes:
+  - name: www-data
+    persistentVolumeClaim:
+      claimName: data

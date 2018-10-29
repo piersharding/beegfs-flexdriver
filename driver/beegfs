@@ -1,0 +1,159 @@
+#!/bin/bash
+
+# copied from NFS example
+
+# Copyright 2018 Piers Harding.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# examples of all phase handlers - https://gist.github.com/feiskyer/8d41ec27ce449e162d8e18f643fcca29
+# beegfs setup - http://www.beegfs.com/wiki/ManualInstallWalkThrough#example_setup
+
+# Notes:
+#  - Please install "jq" package before using this driver.
+usage() {
+    err "Invalid usage. Usage: "
+    err "\t$0 init"
+    err "\t$0 mount <mount dir> <json params>"
+    err "\t$0 unmount <mount dir>"
+    exit 1
+}
+
+err() {
+    echo -ne $* 1>&2
+}
+
+log() {
+    echo -ne $* >&1
+}
+
+ismounted() {
+    MOUNT=`findmnt -n ${MNTPATH} 2>/dev/null | cut -d' ' -f1`
+    if [ "${MOUNT}" == "${MNTPATH}" ]; then
+        echo "1"
+    else
+        echo "0"
+    fi
+}
+
+isbasemounted() {
+    MOUNT=`findmnt -n ${BEEGFS_ROOT} 2>/dev/null | cut -d' ' -f1`
+    if [ "${MOUNT}" == "${BEEGFS_ROOT}" ]; then
+        echo "1"
+    else
+        echo "0"
+    fi
+}
+
+domount() {
+    logger "[beegfs] mount: ($1)/$2"
+    MNTPATH=$1
+
+    SHARE=$(echo $2 | jq -r '.share')
+    ROOT_SUPPLIED=$(echo $2 | jq -r '.root')
+    if [ -n "${ROOT_SUPPLIED}" ]; then
+        if [ "${ROOT_SUPPLIED}" != "null" ]; then
+            BEEGFS_ROOT=${ROOT_SUPPLIED}
+        fi
+    fi
+
+    if [ $(ismounted) -eq 1 ] ; then
+        log '{"status": "Success"}'
+        exit 0
+    fi
+
+    if [ ! -d "${BEEGFS_ROOT}" ]; then
+        err "{ \"status\": \"Failure\", \"message\": \"'BEEGFS_ROOT' (${BEEGFS_ROOT}) does not exist\"}"
+        exit 1
+    fi
+
+    if [ ! $(isbasemounted) -eq 1 ] ; then
+        err "{ \"status\": \"Failure\", \"message\": \"'BEEGFS_ROOT' (${BEEGFS_ROOT}) is not mounted\"}"
+        exit 0
+    fi
+
+    mkdir -p ${MNTPATH} &> /dev/null
+
+    mkdir -p "${BEEGFS_ROOT}/${SHARE}" &> /dev/null
+
+    mount --bind "${BEEGFS_ROOT}/${SHARE}" "${MNTPATH}" &> /dev/null
+    if [ $? -ne 0 ]; then
+        err "{ \"status\": \"Failure\", \"message\": \"Failed to mount ${BEEGFS_ROOT}/${SHARE} at ${MNTPATH}\"}"
+        exit 1
+    fi
+    log '{"status": "Success"}'
+    exit 0
+}
+
+dounmount() {
+    logger "[beegfs] unmount: $1"
+    MNTPATH=$1
+    if [ $(ismounted) -eq 0 ] ; then
+        log '{"status": "Success"}'
+        exit 0
+    fi
+
+    umount ${MNTPATH} &> /dev/null
+    if [ $? -ne 0 ]; then
+        err "{ \"status\": \"Failed\", \"message\": \"Failed to unmount volume at ${MNTPATH}\"}"
+        exit 1
+    fi
+
+    log '{"status": "Success"}'
+    exit 0
+}
+
+
+op=$1
+
+if [ "${BEEGFS_ROOT}" = "" ]; then
+    err "{ \"status\": \"Failure\", \"message\": \"'BEEGFS_ROOT' is not set correctly\"}"
+    exit 1
+fi
+
+if ! command -v jq >/dev/null 2>&1; then
+    err "{ \"status\": \"Failure\", \"message\": \"'jq' binary not found. Please install jq package before using this driver\"}"
+    exit 1
+fi
+
+if [ "$op" = "init" ]; then
+    logger "[beegfs] init with: $* "
+    log '{"status": "Success", "capabilities": {"attach": false}}'
+    exit 0
+fi
+
+if [ $# -lt 2 ]; then
+    usage
+fi
+
+shift
+
+case "$op" in
+    # attach)
+    #     doattach $*
+    #     ;;
+    # detach)
+    #     dodetach $*
+    #     ;;
+    mount)
+        domount $*
+        ;;
+    unmount)
+        dounmount $*
+        ;;
+    *)
+        log '{"status": "Not supported"}'
+        exit 0
+esac
+
+exit 1
