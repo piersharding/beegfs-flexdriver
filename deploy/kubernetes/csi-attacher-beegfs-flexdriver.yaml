@@ -100,13 +100,13 @@ spec:
             - name: CSI_ENDPOINT
               value: unix://plugin/csi.sock
             - name: BEEGFS_ROOT
-              value: /mnt/beegfs
+              value: ${BEEGFS_ROOT}
           imagePullPolicy: "Always"
           volumeMounts:
             - name: socket-dir
               mountPath: /plugin
             - name: beegfs-mount-dir
-              mountPath: /mnt/beegfs
+              mountPath: ${BEEGFS_ROOT}
             # - name: nvmenode-mount-dir
             #   mountPath: /mnt/nvmenode
             - name: syslog
@@ -116,7 +116,7 @@ spec:
           emptyDir:
         - name: beegfs-mount-dir
           hostPath:
-            path: /mnt/beegfs
+            path: ${BEEGFS_ROOT}
             type: Directory
         # - name: nvmenode-mount-dir
         #   hostPath:
