@@ -86,7 +86,7 @@ domount() {
 
     mkdir -p "${BEEGFS_ROOT}/${SHARE}" &> /dev/null
 
-    mount --bind "${BEEGFS_ROOT}/${SHARE}" "${MNTPATH}" &> /dev/null
+    mount --rbind "${BEEGFS_ROOT}/${SHARE}" "${MNTPATH}" &> /dev/null
     if [ $? -ne 0 ]; then
         err "{ \"status\": \"Failure\", \"message\": \"Failed to mount ${BEEGFS_ROOT}/${SHARE} at ${MNTPATH}\"}"
         exit 1

@@ -75,7 +75,7 @@ test:
 
 curl:
 	echo 'Tada!' | sudo tee --append /mnt/beegfs/data/wahoo.txt
-	export IP=$$(sudo kubectl get svc www --template='{{.spec.clusterIP}}') && \
+	export IP=$$(kubectl get svc www --template='{{.spec.clusterIP}}') && \
 	curl http://$${IP}:8000/wahoo.txt
 
 teardown:
